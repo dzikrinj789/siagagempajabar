@@ -9,4 +9,4 @@ fiona==1.10.1
 pyproj==3.7.0
 shapely==2.0.6
 rtree==1.4.0
-geopandas==1.0.1
+geopandas==0.10.2
