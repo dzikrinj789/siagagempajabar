@@ -48,9 +48,11 @@ BUFFER_POI_METER = 500
 # --- FUNGSI-FUNGSI BANTUAN & PREDIKSI ---
 @st.cache_resource
 def load_all_resources():
+    """
+    Memuat semua sumber daya: model, data geografis, dan memastikan CRS-nya benar.
+    """
     print("Memuat semua sumber daya...")
     try:
-        # Memuat model dan file lainnya
         model = joblib.load(MODEL_FILENAME)
         label_encoder = joblib.load(LABEL_ENCODER_FILENAME)
         feature_cols_model = joblib.load(FEATURE_COLUMNS_FILENAME)
@@ -60,13 +62,14 @@ def load_all_resources():
         else:
             model_expected_features = feature_cols_model
             
-        # Memuat data geografis
         gdf_gempa_jabar = gpd.read_file(GD_GEMPA_JABAR_PATH)
         gdf_poi_jabar = gpd.read_file(GD_POI_JABAR_PATH)
         gdf_demografi_jabar_clean = gpd.read_file(GD_DEMOGRAFI_JABAR_CLEAN_PATH)
+
+        # DEBUGGING: Hapus komentar pada baris di bawah ini jika ingin melihat nama kolom yang tersedia di terminal
+        # print("Kolom di gdf_poi_jabar:", gdf_poi_jabar.columns.tolist())
         
-        # --- PERBAIKAN DI SINI ---
-        # Lakukan konversi CRS secara eksplisit untuk setiap GeoDataFrame
+        # --- [FIXED] LAKUKAN KONVERSI CRS SECARA EKSPLISIT ---
         target_crs = "EPSG:4326"
         if gdf_gempa_jabar.crs != target_crs:
             gdf_gempa_jabar = gdf_gempa_jabar.to_crs(target_crs)
@@ -76,7 +79,6 @@ def load_all_resources():
             
         if gdf_demografi_jabar_clean.crs != target_crs:
             gdf_demografi_jabar_clean = gdf_demografi_jabar_clean.to_crs(target_crs)
-        # --- AKHIR PERBAIKAN ---
 
         return model, label_encoder, model_expected_features, gdf_gempa_jabar, \
                gdf_poi_jabar, gdf_demografi_jabar_clean
@@ -95,8 +97,13 @@ def predict_vulnerability_for_point(
     user_ada_rs, user_ada_sekolah, user_ada_pemerintahan, user_ada_bangunan_biasa, user_ada_fasos_lain,
     model_expected_features, gdf_gempa, gdf_poi, gdf_demografi
 ):
+    """
+    Fungsi utama untuk mengumpulkan semua fitur dan mempersiapkan data untuk prediksi.
+    """
     user_point = gpd.GeoDataFrame(geometry=[Point(user_lon, user_lat)], crs="EPSG:4326")
-    user_point_proj = user_point.to_crs(epsg=3857)
+    user_point_proj = user_point.to_crs(epsg=3857) # Proyeksi ke meter untuk buffer
+
+    # --- Fitur Demografi dari Kelurahan ---
     point_demog_sjoin = gpd.sjoin(user_point, gdf_demografi, how="inner", predicate='intersects')
     demog_features_dict = {}
     expected_demog_features_list = ['jumlah_penduduk', 'pria', 'wanita', 'jumlah_produktif', 'jumlah_non_produktif', 'rasio_lp', 'rasio_produktif_nonproduktif', 'kepadatan_penduduk_kelurahan', 'jumlah_penduduk_miskin_kelurahan_estimasi']
@@ -105,46 +112,74 @@ def predict_vulnerability_for_point(
     else:
         demog_data = point_demog_sjoin.iloc[0]
         for col in expected_demog_features_list: demog_features_dict[col] = demog_data.get(col, 0.0)
+    
     non_produktif_user_estimate = user_jumlah_anak + user_jumlah_lansia
     non_produktif_kelurahan = demog_features_dict.get('jumlah_non_produktif', 0)
     final_non_produktif = max(non_produktif_user_estimate, non_produktif_kelurahan)
     demog_features_dict['jumlah_non_produktif'] = final_non_produktif
+    
     jumlah_produktif_kelurahan = demog_features_dict.get('jumlah_produktif', 0)
     if final_non_produktif > 0:
         demog_features_dict['rasio_produktif_nonproduktif'] = jumlah_produktif_kelurahan / final_non_produktif
     else:
         demog_features_dict['rasio_produktif_nonproduktif'] = 1.0
+
+    # --- Fitur Gempa Terdekat ---
     buffer_gempa = gpd.GeoDataFrame(geometry=[user_point_proj.geometry.iloc[0].buffer(BUFFER_GEMPA_KM * 1000)], crs="EPSG:3857").to_crs(epsg=4326)
     nearby_gempa_sjoin = gpd.sjoin(gdf_gempa, buffer_gempa, how="inner", predicate='intersects')
     if nearby_gempa_sjoin.empty:
         gempa_features_dict = {'count_gempa': 0, 'max_mag': 0.0, 'avg_depth': 0.0}
     else:
         gempa_features_dict = {'count_gempa': len(nearby_gempa_sjoin), 'max_mag': nearby_gempa_sjoin['mag'].max(), 'avg_depth': nearby_gempa_sjoin['depth'].mean()}
+
+    # --- Fitur POI Terdekat ---
     buffer_poi = gpd.GeoDataFrame(geometry=[user_point_proj.geometry.iloc[0].buffer(BUFFER_POI_METER)], crs="EPSG:3857").to_crs(epsg=4326)
     nearby_poi_sjoin = gpd.sjoin(gdf_poi, buffer_poi, how="inner", predicate='intersects')
-    # Periksa apakah hasilnya kosong atau tidak
+    
+    # --- [FIXED] BLOK LOGIKA UNTUK MENCEGAH KEYERROR ---
+    poi_counts = {}  # Inisialisasi dengan dictionary kosong sebagai default
+
     if not nearby_poi_sjoin.empty:
-        poi_counts = nearby_poi_sjoin['category'].value_counts().to_dict()
-    else:
-        # Jika kosong, buat dictionary kosong agar kode tidak error
-        poi_counts = {}
+        # PENTING: Jika nama kolom Anda bukan 'category', ganti di baris di bawah ini.
+        # Anda bisa mengetahuinya dari hasil debug di terminal/log.
+        nama_kolom_kategori = 'category'
+        
+        if nama_kolom_kategori in nearby_poi_sjoin.columns:
+            poi_counts = nearby_poi_sjoin[nama_kolom_kategori].value_counts().to_dict()
+        else:
+            st.error(f"Kolom '{nama_kolom_kategori}' tidak ditemukan di data POI Anda. Harap periksa file sumber.")
+            st.warning(f"Kolom yang tersedia di data POI adalah: {nearby_poi_sjoin.columns.tolist()}")
+    
     poi_features_dict = {
-        'count_poi_fasilitas_kesehatan': poi_counts.get('Fasilitas Kesehatan', 0), 'count_poi_sekolah': poi_counts.get('Sekolah', 0),
-        'count_poi_pemerintahan/publik': poi_counts.get('Pemerintahan/Publik', 0), 'count_poi_fasilitas_sosial/publik_lain': poi_counts.get('Fasilitas Sosial/Publik Lain', 0),
+        'count_poi_fasilitas_kesehatan': poi_counts.get('Fasilitas Kesehatan', 0), 
+        'count_poi_sekolah': poi_counts.get('Sekolah', 0),
+        'count_poi_pemerintahan/publik': poi_counts.get('Pemerintahan/Publik', 0), 
+        'count_poi_fasilitas_sosial/publik_lain': poi_counts.get('Fasilitas Sosial/Publik Lain', 0),
         'count_poi_bangunan_biasa': poi_counts.get('Bangunan Biasa', 0)
     }
+    # --- AKHIR BLOK PERBAIKAN ---
+
+    # Gabungkan dengan input konfirmasi dari pengguna
     if user_ada_rs == 'Ya': poi_features_dict['count_poi_fasilitas_kesehatan'] = max(1, poi_features_dict['count_poi_fasilitas_kesehatan'])
     if user_ada_sekolah == 'Ya': poi_features_dict['count_poi_sekolah'] = max(1, poi_features_dict['count_poi_sekolah'])
     if user_ada_pemerintahan == 'Ya': poi_features_dict['count_poi_pemerintahan/publik'] = max(1, poi_features_dict['count_poi_pemerintahan/publik'])
     if user_ada_fasos_lain == 'Ya': poi_features_dict['count_poi_fasilitas_sosial/publik_lain'] = max(1, poi_features_dict['count_poi_fasilitas_sosial/publik_lain'])
     if user_ada_bangunan_biasa == 'Ya': poi_features_dict['count_poi_bangunan_biasa'] = max(1, poi_features_dict['count_poi_bangunan_biasa'])
+    
+    # --- Fitur dari Input Pengguna ---
     rasio_lp_user = user_jumlah_laki / user_jumlah_perempuan if user_jumlah_perempuan > 0 else 1.0
     user_input_features = {'user_input_jumlah_kk': user_jumlah_kk, 'user_input_rasio_lp': rasio_lp_user}
+    
+    # --- Gabungkan Semua Fitur dan Siapkan untuk Model ---
     all_features_dict = {**demog_features_dict, **gempa_features_dict, **poi_features_dict, **user_input_features}
     X_new_series = pd.Series(all_features_dict)
+    
     return pd.DataFrame([X_new_series]).reindex(columns=model_expected_features, fill_value=0.0)
 
 def predict_vulnerability(X_new_predict, model, label_encoder):
+    """
+    Menjalankan prediksi pada data yang sudah disiapkan.
+    """
     prediction_encoded = model.predict(X_new_predict)[0]
     return label_encoder.inverse_transform([prediction_encoded])[0]
 
@@ -169,13 +204,17 @@ with col1:
     CENTER_START = [-6.9175, 107.6191] # Koordinat Bandung
     map_input = folium.Map(location=CENTER_START, zoom_start=10, tiles="cartodbpositron")
     map_input.get_root().html.add_child(folium.Element("<style>.leaflet-container {cursor: crosshair;}</style>"))
+    
     marker_location = None
     if st.session_state.last_map_click: marker_location = [st.session_state.last_map_click['lat'], st.session_state.last_map_click['lng']]
     elif st.session_state.confirmed_location: marker_location = [st.session_state.confirmed_location['lat'], st.session_state.confirmed_location['lng']]
+    
     if marker_location:
         folium.Marker(location=marker_location, popup="Pilihan Anda", icon=folium.Icon(color='blue', icon='map-marker')).add_to(map_input)
         map_input.location, map_input.zoom_start = marker_location, 14
+        
     map_output = st_folium(map_input, use_container_width=True, height=350)
+    
     if map_output and map_output['last_clicked']: st.session_state.last_map_click = map_output['last_clicked']
     
     btn_col1, btn_col2 = st.columns(2)
@@ -204,6 +243,7 @@ with col2:
     sub_col1, sub_col2 = st.columns(2)
     jumlah_laki_input = sub_col1.number_input("**Estimasi Jumlah Laki-laki**", min_value=0, value=75, step=5)
     jumlah_perempuan_input = sub_col2.number_input("**Estimasi Jumlah Perempuan**", min_value=0, value=75, step=5)
+    
     st.markdown("###### **Estimasi Kelompok Usia Rentan**")
     sub_col3, sub_col4 = st.columns(2)
     jumlah_anak_input = sub_col3.number_input("**Jumlah Anak-anak (<15 thn)**", min_value=0, value=20, step=2, help="Perkiraan jumlah anak-anak di sekitar lokasi.")
@@ -238,6 +278,7 @@ with col2:
                 st.session_state.prediction_made = True
                 st.session_state.predicted_level = predicted_level
                 st.session_state.map_data = {'latitude': lat, 'longitude': lon}
+                st.rerun() # Rerun untuk menampilkan hasil di bawah
 
 # --- HASIL PREDIKSI ---
 if st.session_state.prediction_made:
@@ -255,6 +296,7 @@ if st.session_state.prediction_made:
     else:
         st.success(f"**Tingkat Risiko: RENDAH**")
 
+    # --- Penjelasan Hasil ---
     st.markdown("---")
     st.header("💡 Mengapa Tingkat Risiko Ini?")
     if predicted_level == 'Tinggi':
@@ -288,6 +330,7 @@ if st.session_state.prediction_made:
         **Saran:** Meskipun risikonya rendah, tetap penting untuk memiliki rencana darurat dasar, mengetahui jalur evakuasi, dan memastikan bangunan memenuhi standar keselamatan gempa.
         """)
 
+    # --- Peta Kontekstual ---
     st.markdown("---")
     st.header("🗺️ Peta Lokasi Anda & Data Kontekstual")
     kab_name, kec_name, kel_name = "Tidak Terdeteksi", "Tidak Terdeteksi", "Tidak Terdeteksi"
@@ -303,6 +346,7 @@ if st.session_state.prediction_made:
     
     m_results = folium.Map(location=[latitude, longitude], zoom_start=15, tiles="cartodbpositron")
     
+    # Layer Batas Kelurahan
     if kelurahan_info is not None:
         style = {'fillColor': '#3186cc', 'color': '#3186cc', 'weight': 2, 'fillOpacity': 0.2}
         folium.GeoJson(
@@ -310,9 +354,10 @@ if st.session_state.prediction_made:
             tooltip=f"<b>Kelurahan: {kel_name}</b>", name="Batas Kelurahan"
         ).add_to(m_results)
         
+    # Layer Gempa Terdekat
     user_point_proj = user_point_gdf.to_crs(epsg=3857)
     gdf_gempa_proj = gdf_gempa_jabar.to_crs(epsg=3857)
-    gempa_buffer = user_point_proj.geometry.iloc[0].buffer(20000)
+    gempa_buffer = user_point_proj.geometry.iloc[0].buffer(20000) # Buffer 20km
     nearby_gempa_map = gdf_gempa_jabar[gdf_gempa_proj.geometry.intersects(gempa_buffer)]
     gempa_group = folium.FeatureGroup(name="Gempa Terdekat (Radius 20 km)", show=True).add_to(m_results)
     if not nearby_gempa_map.empty:
@@ -324,8 +369,9 @@ if st.session_state.prediction_made:
                 popup=f"<b>Magnitudo: {row['mag']:.1f}</b><br>Kedalaman: {row['depth']:.1f} km"
             ).add_to(gempa_group)
             
+    # Layer POI Terdekat
     gdf_poi_proj = gdf_poi_jabar.to_crs(epsg=3857)
-    poi_buffer = user_point_proj.geometry.iloc[0].buffer(1000)
+    poi_buffer = user_point_proj.geometry.iloc[0].buffer(1000) # Buffer 1km
     nearby_poi_map = gdf_poi_jabar[gdf_poi_proj.geometry.intersects(poi_buffer)]
     poi_group = folium.FeatureGroup(name="Fasilitas Umum Terdekat (Radius 1 km)", show=True).add_to(m_results)
     if not nearby_poi_map.empty:
@@ -337,22 +383,24 @@ if st.session_state.prediction_made:
             'Bangunan Biasa': {'color': 'gray', 'icon': 'home'}
         }
         for _, poi in nearby_poi_map.iterrows():
-            category = poi['category']
+            category = poi.get('category', 'Lainnya') # Gunakan .get() untuk keamanan
             icon_style = poi_icon_map.get(category, {'color': 'purple', 'icon': 'info-sign'})
             folium.Marker(
                 location=[poi.geometry.y, poi.geometry.x], tooltip=category,
                 icon=folium.Icon(color=icon_style['color'], icon=icon_style['icon'], prefix='glyphicon')
             ).add_to(poi_group)
             
+    # Marker Lokasi Pengguna
     folium.Marker(
         [latitude, longitude], tooltip="Lokasi Anda",
         popup=f"<b>Prediksi: {predicted_level}</b>",
         icon=folium.Icon(color="orange", icon="star")
     ).add_to(m_results)
-    folium.LayerControl().add_to(m_results)
     
+    folium.LayerControl().add_to(m_results)
     st_folium(m_results, use_container_width=True, height=500, returned_objects=[])
     
+    # Catatan Peta
     st.markdown("---")
     st.write("**Catatan Peta Kontekstual:**")
     if nearby_gempa_map.empty:
