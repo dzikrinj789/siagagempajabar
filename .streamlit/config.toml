@@ -11,12 +11,15 @@ toolbarMode = "minimal"
 level = "info"
 
 [global]
-# Tentukan versi Python yang lebih stabil untuk kompatibilitas geopandas
-python_version = "3.9" # <--- TAMBAHKAN BARIS INI!
+# Pastikan versi Python sama dengan di environment.yml
+python_version = "3.9"
 
-# Force Streamlit to build the environment with specific system packages needed by geopandas
-packages = ["build-essential", "libgdal-dev", "libspatialindex-dev", "gdal-bin"]
+# AKTIFKAN PENGGUNAAN CONDA (mambaforge)
+using_conda = true # <--- UBAH/TAMBAHKAN BARIS INI!
 
 [install]
+# Jika using_conda=true, Streamlit akan otomatis mencari environment.yml
+# build_command tidak perlu didefinisikan lagi secara spesifik untuk instalasi pip,
+# karena pip packages di environment.yml akan diinstal otomatis setelah conda env.
 runOn = "startup"
-build_command = "pip install -r requirements.txt"
+# build_command = "pip install -r requirements.txt" # Baris ini bisa dihapus atau dikomentari
