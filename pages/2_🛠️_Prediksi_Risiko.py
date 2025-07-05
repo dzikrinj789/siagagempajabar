@@ -106,7 +106,12 @@ def predict_vulnerability_for_point(
         gempa_features_dict = {'count_gempa': len(nearby_gempa_sjoin), 'max_mag': nearby_gempa_sjoin['mag'].max(), 'avg_depth': nearby_gempa_sjoin['depth'].mean()}
     buffer_poi = gpd.GeoDataFrame(geometry=[user_point_proj.geometry.iloc[0].buffer(BUFFER_POI_METER)], crs="EPSG:3857").to_crs(epsg=4326)
     nearby_poi_sjoin = gpd.sjoin(gdf_poi, buffer_poi, how="inner", predicate='intersects')
-    poi_counts = nearby_poi_sjoin['category'].value_counts().to_dict()
+    # Periksa apakah hasilnya kosong atau tidak
+    if not nearby_poi_sjoin.empty:
+        poi_counts = nearby_poi_sjoin['category'].value_counts().to_dict()
+    else:
+        # Jika kosong, buat dictionary kosong agar kode tidak error
+        poi_counts = {}
     poi_features_dict = {
         'count_poi_fasilitas_kesehatan': poi_counts.get('Fasilitas Kesehatan', 0), 'count_poi_sekolah': poi_counts.get('Sekolah', 0),
         'count_poi_pemerintahan/publik': poi_counts.get('Pemerintahan/Publik', 0), 'count_poi_fasilitas_sosial/publik_lain': poi_counts.get('Fasilitas Sosial/Publik Lain', 0),
