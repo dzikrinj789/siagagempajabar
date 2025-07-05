@@ -1,0 +1,23 @@
+[server]
+headless = true
+port = 8501
+enableCORS = false
+enableXsrfProtection = false
+
+[client]
+toolbarMode = "minimal"
+
+[logger]
+level = "info"
+
+[global]
+# Baris ini SANGAT PENTING untuk geopandas.
+# Ini akan menginstal dependensi sistem operasi yang dibutuhkan oleh geopandas.
+# Streamlit Cloud menggunakan Ubuntu, jadi ini adalah nama paket Ubuntu.
+packages = ["build-essential", "libgdal-dev", "libspatialindex-dev", "gdal-bin"]
+
+[install]
+# Secara eksplisit memberitahu Streamlit untuk menjalankan pip install dari requirements.txt
+# Ini memastikan tidak ada package yang terlewat.
+runOn = "startup"
+build_command = "pip install -r requirements.txt"
