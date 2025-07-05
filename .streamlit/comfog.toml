@@ -1,0 +1,19 @@
+[server]
+headless = true
+port = 8501
+enableCORS = false
+enableXsrfProtection = false
+
+[client]
+toolbarMode = "minimal"
+
+[logger]
+level = "info"
+
+[global]
+python_version = "3.9" # Pin Python version
+using_conda = true     # Aktifkan Conda
+
+[install]
+runOn = "startup"
+# Tidak perlu build_command di sini, environment.yml akan diurus oleh using_conda
