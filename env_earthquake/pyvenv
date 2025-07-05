@@ -1,0 +1,5 @@
+home = C:\Users\dzikr\AppData\Local\Programs\Python\Python313
+include-system-site-packages = false
+version = 3.13.0
+executable = C:\Users\dzikr\AppData\Local\Programs\Python\Python313\python.exe
+command = C:\Users\dzikr\AppData\Local\Programs\Python\Python313\python.exe -m venv C:\Users\dzikr\Documents\HP November 2024\SELF DEVELOPMENT\DQLab\Machiner Learning\FINAL PROJECT\EARTHQUAKE\env_earthquake
