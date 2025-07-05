@@ -3,8 +3,9 @@ channels:
   - conda-forge # Channel utama untuk package sains & geo
   - defaults
 dependencies:
-  - python=3.9 # HARUS SAMA dengan python_version di .streamlit/config.toml
-  - geopandas=0.10.2 # Gunakan versi stabil yang tadi kita coba
+  - python=3.9 # Versi Python yang kita targetkan (harus sama dengan yang kamu pakai di lokal)
+  - pip # <--- TAMBAHKAN BARIS INI! Sangat penting saat mencampur conda dan pip
+  - geopandas=0.10.2 # Versi stabil yang tadi kita coba
   - fiona=1.8.21
   - pyproj=3.2.1
   - shapely=1.8.0
@@ -14,7 +15,7 @@ dependencies:
   - scikit-learn=1.7.0
   - folium=0.20.0
   - joblib=1.2.0
-  # List library yang hanya ada di pip (jika ada), masukkan di bawah 'pip:'
+  # List library yang hanya ada di pip, masukkan di bawah 'pip:'
   - pip:
     - streamlit==1.46.0
     - streamlit-folium==0.25.0
