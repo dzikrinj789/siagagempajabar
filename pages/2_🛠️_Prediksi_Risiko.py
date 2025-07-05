@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import geopandas as gpd
 from shapely.geometry import Point
 import joblib
 from sklearn.preprocessing import LabelEncoder
