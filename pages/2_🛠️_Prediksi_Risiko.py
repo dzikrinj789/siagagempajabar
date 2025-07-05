@@ -50,21 +50,37 @@ BUFFER_POI_METER = 500
 def load_all_resources():
     print("Memuat semua sumber daya...")
     try:
+        # Memuat model dan file lainnya
         model = joblib.load(MODEL_FILENAME)
         label_encoder = joblib.load(LABEL_ENCODER_FILENAME)
         feature_cols_model = joblib.load(FEATURE_COLUMNS_FILENAME)
+        
         if hasattr(model, 'feature_names_in_'):
             model_expected_features = model.feature_names_in_.tolist()
         else:
             model_expected_features = feature_cols_model
+            
+        # Memuat data geografis
         gdf_gempa_jabar = gpd.read_file(GD_GEMPA_JABAR_PATH)
         gdf_poi_jabar = gpd.read_file(GD_POI_JABAR_PATH)
         gdf_demografi_jabar_clean = gpd.read_file(GD_DEMOGRAFI_JABAR_CLEAN_PATH)
-        for gdf in [gdf_gempa_jabar, gdf_poi_jabar, gdf_demografi_jabar_clean]:
-            if gdf.crs != "EPSG:4326":
-                gdf = gdf.to_crs("EPSG:4326")
+        
+        # --- PERBAIKAN DI SINI ---
+        # Lakukan konversi CRS secara eksplisit untuk setiap GeoDataFrame
+        target_crs = "EPSG:4326"
+        if gdf_gempa_jabar.crs != target_crs:
+            gdf_gempa_jabar = gdf_gempa_jabar.to_crs(target_crs)
+        
+        if gdf_poi_jabar.crs != target_crs:
+            gdf_poi_jabar = gdf_poi_jabar.to_crs(target_crs)
+            
+        if gdf_demografi_jabar_clean.crs != target_crs:
+            gdf_demografi_jabar_clean = gdf_demografi_jabar_clean.to_crs(target_crs)
+        # --- AKHIR PERBAIKAN ---
+
         return model, label_encoder, model_expected_features, gdf_gempa_jabar, \
                gdf_poi_jabar, gdf_demografi_jabar_clean
+               
     except FileNotFoundError as e:
         st.error(f"ERROR: File sumber daya tidak ditemukan: {e}. Pastikan path '{DIR_DATA_FILES}' dan file-filenya benar.")
         st.stop()
