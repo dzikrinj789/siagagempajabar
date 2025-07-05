@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+
+# Data files (opsional, jika ada data yang sangat besar tidak ingin diupload)
+# Tapi untuk project ini, semua .gpkg, .pkl perlu diupload
+# *.csv
+# *.xlsx
