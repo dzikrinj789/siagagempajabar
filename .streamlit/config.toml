@@ -11,13 +11,12 @@ toolbarMode = "minimal"
 level = "info"
 
 [global]
-# Baris ini SANGAT PENTING untuk geopandas.
-# Ini akan menginstal dependensi sistem operasi yang dibutuhkan oleh geopandas.
-# Streamlit Cloud menggunakan Ubuntu, jadi ini adalah nama paket Ubuntu.
+# Tentukan versi Python yang lebih stabil untuk kompatibilitas geopandas
+python_version = "3.9" # <--- TAMBAHKAN BARIS INI!
+
+# Force Streamlit to build the environment with specific system packages needed by geopandas
 packages = ["build-essential", "libgdal-dev", "libspatialindex-dev", "gdal-bin"]
 
 [install]
-# Secara eksplisit memberitahu Streamlit untuk menjalankan pip install dari requirements.txt
-# Ini memastikan tidak ada package yang terlewat.
 runOn = "startup"
 build_command = "pip install -r requirements.txt"
