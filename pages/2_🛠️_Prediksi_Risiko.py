@@ -151,12 +151,16 @@ def predict_vulnerability_for_point(
             st.warning(f"Kolom yang tersedia di data POI adalah: {nearby_poi_sjoin.columns.tolist()}")
     
     poi_features_dict = {
-        'count_poi_fasilitas_kesehatan': poi_counts.get('Fasilitas Kesehatan', 0), 
-        'count_poi_sekolah': poi_counts.get('Sekolah', 0),
-        'count_poi_pemerintahan/publik': poi_counts.get('Pemerintahan/Publik', 0), 
-        'count_poi_fasilitas_sosial/publik_lain': poi_counts.get('Fasilitas Sosial/Publik Lain', 0),
-        'count_poi_bangunan_biasa': poi_counts.get('Bangunan Biasa', 0)
-    }
+        # Fasilitas Kesehatan = hospital + clinic
+        'count_poi_fasilitas_kesehatan': poi_counts.get('hospital', 0) + poi_counts.get('clinic', 0),
+        # Sekolah = school + library
+        'count_poi_sekolah': poi_counts.get('school', 0) + poi_counts.get('library', 0),
+        # Pemerintahan/Publik = police + townhall
+        'count_poi_pemerintahan/publik': poi_counts.get('police', 0) + poi_counts.get('townhall', 0),
+        # Fasilitas Sosial Lain = place_of_worship + restaurant
+        'count_poi_fasilitas_sosial/publik_lain': poi_counts.get('place_of_worship', 0) + poi_counts.get('restaurant', 0),
+        # Bangunan Biasa = bangunan
+        'count_poi_bangunan_biasa': poi_counts.get('bangunan', 0)}
     # --- AKHIR BLOK PERBAIKAN ---
 
     # Gabungkan dengan input konfirmasi dari pengguna
@@ -376,11 +380,15 @@ if st.session_state.prediction_made:
     poi_group = folium.FeatureGroup(name="Fasilitas Umum Terdekat (Radius 1 km)", show=True).add_to(m_results)
     if not nearby_poi_map.empty:
         poi_icon_map = {
-            'Fasilitas Kesehatan': {'color': 'red', 'icon': 'plus-sign'},
-            'Sekolah': {'color': 'blue', 'icon': 'education'},
-            'Pemerintahan/Publik': {'color': 'darkblue', 'icon': 'bank'},
-            'Fasilitas Sosial/Publik Lain': {'color': 'green', 'icon': 'tree-conifer'},
-            'Bangunan Biasa': {'color': 'gray', 'icon': 'home'}
+        'hospital': {'color': 'red', 'icon': 'plus-sign'},
+        'clinic': {'color': 'red', 'icon': 'plus-sign'},
+        'school': {'color': 'blue', 'icon': 'education'},
+        'library': {'color': 'cadetblue', 'icon': 'book'},
+        'police': {'color': 'darkblue', 'icon': 'shield'}, # 'shield' lebih cocok untuk polisi
+        'townhall': {'color': 'darkblue', 'icon': 'bank'},
+        'place_of_worship': {'color': 'green', 'icon': 'home'}, # Ikon generik untuk tempat ibadah
+        'restaurant': {'color': 'orange', 'icon': 'cutlery'}, # 'cutlery' lebih cocok untuk restoran
+        'bangunan': {'color': 'gray', 'icon': 'building'} # 'building' juga bisa jadi pilihan
         }
         for _, poi in nearby_poi_map.iterrows():
             category = poi.get('amenity') # Gunakan .get() untuk keamanan
@@ -409,5 +417,6 @@ if st.session_state.prediction_made:
         st.info("Tidak ditemukan data Fasilitas Umum (POI) dalam radius 1 km dari lokasi terpilih.")
     if kelurahan_info is None:
         st.info("Informasi batas wilayah kelurahan tidak tersedia untuk titik lokasi ini.")
+
 
 
