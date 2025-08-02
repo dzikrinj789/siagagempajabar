@@ -142,7 +142,7 @@ def predict_vulnerability_for_point(
     if not nearby_poi_sjoin.empty:
         # PENTING: Jika nama kolom Anda bukan 'category', ganti di baris di bawah ini.
         # Anda bisa mengetahuinya dari hasil debug di terminal/log.
-        nama_kolom_kategori = 'category'
+        nama_kolom_kategori = 'amenity'
         
         if nama_kolom_kategori in nearby_poi_sjoin.columns:
             poi_counts = nearby_poi_sjoin[nama_kolom_kategori].value_counts().to_dict()
@@ -383,7 +383,7 @@ if st.session_state.prediction_made:
             'Bangunan Biasa': {'color': 'gray', 'icon': 'home'}
         }
         for _, poi in nearby_poi_map.iterrows():
-            category = poi.get('category') # Gunakan .get() untuk keamanan
+            category = poi.get('amenity') # Gunakan .get() untuk keamanan
             icon_style = poi_icon_map.get(category, {'color': 'purple', 'icon': 'info-sign'})
             folium.Marker(
                 location=[poi.geometry.y, poi.geometry.x], tooltip=category,
@@ -409,4 +409,5 @@ if st.session_state.prediction_made:
         st.info("Tidak ditemukan data Fasilitas Umum (POI) dalam radius 1 km dari lokasi terpilih.")
     if kelurahan_info is None:
         st.info("Informasi batas wilayah kelurahan tidak tersedia untuk titik lokasi ini.")
+
 
